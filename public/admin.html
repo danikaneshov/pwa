@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRM | dám dym</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;800;900&family=Permanent+Marker&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Montserrat', sans-serif; background: #121212; color: white; margin: 0; padding: 20px; }
+        header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 20px; }
+        h1 { font-family: 'Permanent Marker', cursive; color: #00e5ff; margin: 0; }
+        
+        .order-card { background: #1e1e1e; border: 2px solid #333; border-left: 6px solid #e60023; padding: 15px; margin-bottom: 15px; border-radius: 8px; }
+        .order-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+        .tariff { font-family: 'Permanent Marker', cursive; font-size: 1.5rem; }
+        .phone { font-weight: 900; color: #00e5ff; }
+        
+        .details { font-size: 0.9rem; color: #aaa; margin-bottom: 15px; line-height: 1.5; }
+        .details strong { color: white; }
+        
+        .status-btn-group { display: flex; gap: 5px; flex-wrap: wrap; }
+        .s-btn { flex: 1; min-width: 80px; padding: 10px; font-weight: 900; text-transform: uppercase; border: none; cursor: pointer; border-radius: 4px; font-size: 0.7rem; }
+        .s-accept { background: #ff9800; color: black; }
+        .s-delivery { background: #00e5ff; color: black; }
+        .s-done { background: #4caf50; color: white; }
+        
+        .is-new { animation: blinkRed 1s infinite alternate; }
+        @keyframes blinkRed { from { border-left-color: #e60023; } to { border-left-color: transparent; } }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>CRM CONTROL</h1>
+        <button onclick="enableAudio()" style="padding: 10px; background: #e60023; color: white; border: none; font-weight: 900; border-radius: 5px;">ВКЛЮЧИТЬ ЗВУК 🔔</button>
+    </header>
+
+    <div id="orders-container"><p>Загрузка заказов...</p></div>
+
+    <audio id="alert-sound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
+
+    <script>
+        let lastOrderCount = 0;
+        let audioEnabled = false;
+
+        function enableAudio() {
+            audioEnabled = true;
+            document.getElementById('alert-sound').play().catch(()=>{});
+            alert('Звук уведомлений включен!');
+        }
+
+        async function fetchOrders() {
+            try {
+                const res = await fetch('/api/orders?admin=true');
+                const orders = await res.json();
+                
+                // Если появился новый заказ
+                if (orders.length > lastOrderCount && lastOrderCount !== 0) {
+                    if (audioEnabled) document.getElementById('alert-sound').play();
+                }
+                lastOrderCount = orders.length;
+                
+                const container = document.getElementById('orders-container');
+                container.innerHTML = '';
+                
+                if(orders.length === 0) container.innerHTML = '<p>Активных заказов нет.</p>';
+
+                orders.forEach(o => {
+                    const isNew = o.status === 'new' ? 'is-new' : '';
+                    container.innerHTML += `
+                        <div class="order-card ${isNew}">
+                            <div class="order-header">
+                                <span class="tariff">${o.tariff}</span>
+                                <span class="phone">${o.phone}</span>
+                            </div>
+                            <div class="details">
+                                <strong>Статус:</strong> ${o.status.toUpperCase()}<br>
+                                <strong>Крепость:</strong> ${o.strength}<br>
+                                <strong>Вкус:</strong> ${o.flavor}<br>
+                                <strong>Холодок:</strong> ${o.ice}<br>
+                                <strong>Коммент:</strong> ${o.comment}
+                            </div>
+                            <div class="status-btn-group">
+                                <button class="s-btn s-accept" onclick="updateStatus('${o.id}', 'accepted')">ПРИНЯТ</button>
+                                <button class="s-btn s-delivery" onclick="updateStatus('${o.id}', 'delivery')">КУРЬЕР</button>
+                                <button class="s-btn s-done" onclick="updateStatus('${o.id}', 'done')">ЗАВЕРШЕН</button>
+                            </div>
+                        </div>
+                    `;
+                });
+            } catch (e) { console.error("Ошибка CRM"); }
+        }
+
+        async function updateStatus(orderId, newStatus) {
+            await fetch('/api/orders', {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: orderId, status: newStatus })
+            });
+            fetchOrders();
+        }
+
+        setInterval(fetchOrders, 5000);
+        fetchOrders();
+    </script>
+</body>
+</html>
